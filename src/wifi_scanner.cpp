@@ -6,20 +6,20 @@ static bool scanning = false;
 
 void wifiScannerInit() {
     WiFi.mode(WIFI_AP_STA);
-    // Station mode ready for scanning
+    WiFi.enableSTA(true);
 }
 
 void startWifiScan() {
     if (scanning) {
-        sendUartMessage("$WIFI,SCAN,ALREADY_RUNNING");
+        Serial.println("[Wi-Fi] Scan already in progress...");
         return;
     }
     WiFi.enableSTA(true);
-    int16_t res = WiFi.scanNetworks(true, true); // true = async, true = show hidden
+    // Non-blocking asynchronous Wi-Fi scan with hidden networks enabled
+    WiFi.scanNetworks(true, true);
     scanning = true;
-    Serial.println("[Wi-Fi] Scan started...");
+    Serial.println("[Wi-Fi] Scan initiated by STM32 request.");
 }
-
 
 bool isWifiScanning() {
     return scanning;
@@ -34,25 +34,25 @@ void wifiScannerLoop() {
     }
 
     if (n < 0) {
-        Serial.printf("[Wi-Fi] Scan failed with code %d\n", n);
+        Serial.printf("[Wi-Fi] Scan error code: %d\n", n);
         sendUartMessage("$WIFI,COUNT,0");
         scanning = false;
         WiFi.scanDelete();
         return;
     }
 
-    // Directly matches STM32 sscanf(message, "$WIFI,%d", &count)
-    Serial.printf("[Wi-Fi] Scan completed! Found %d APs\n", n);
+    Serial.printf("[Wi-Fi] Scan complete! Found %d networks.\n", n);
 
-    // Also send count and items for advanced viewers
+    // Send total count to STM32
     sendUartMessage("$WIFI,COUNT," + String(n));
     delay(20);
 
+    // Transmit up to 15 items in compact format matching STM32 sscanf
     int sendCount = (n > 15) ? 15 : n;
     for (int i = 0; i < sendCount; ++i) {
         String ssid = WiFi.SSID(i);
         if (ssid.length() == 0) ssid = "<Hidden>";
-        if (ssid.length() > 14) ssid = ssid.substring(0, 14); // Keep short for OLED
+        if (ssid.length() > 14) ssid = ssid.substring(0, 14);
         ssid.replace(',', '_');
         ssid.replace(' ', '_');
         int32_t rssi = WiFi.RSSI(i);
@@ -60,10 +60,10 @@ void wifiScannerLoop() {
         // Compact format: $WIFI,ITEM,<idx>,<SSID>,<RSSI>
         String line = "$WIFI,ITEM," + String(i) + "," + ssid + "," + String(rssi);
         sendUartMessage(line);
-        delay(25); // Gives STM32 time to process each line without RX buffer overflow
+        delay(25); // Prevents buffer overflow on STM32 USART1
     }
 
+    sendUartMessage("$WIFI,SCAN,DONE");
     WiFi.scanDelete();
     scanning = false;
-    
 }

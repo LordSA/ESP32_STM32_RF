@@ -17,6 +17,9 @@
 #include "src/server.h"
 #include "src/main.h"
 #include "src/display.h"
+#include "src/uart_protocol.h"
+
+static bool  jamming = false;
 
 const std::vector<byte> bluetooth_channels = {
   32, 34, 46, 
@@ -127,6 +130,7 @@ void wifi_jam() {
   #if defined(HAS_OLED_SCREEN)
   printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
   #endif
+  // Serial.println("Wifi Jamming.", JAMMER_FOOTER_MSG);
   
   while (!jammerStopFlag) { 
       if (!checkRadioStatus()) 
