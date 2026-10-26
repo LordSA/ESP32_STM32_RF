@@ -23,6 +23,9 @@
 #include "src/server.h"
 #include "src/display.h"
 #include "src/radio.h"
+#include "src/uart_protocol.h"
+#include "src/wifi_scanner.h"
+#include "src/ble_scanner.h"
 
 volatile bool jammerStopFlag = false;
 #if defined(ALLOW_SLEEP)
@@ -144,7 +147,10 @@ void setup() {
      * Won't be using the bluetooth stack in this project.
      * Save power by disabling the controller.
     */
-    esp_bt_controller_disable();
+    // esp_bt_controller_disable(); // Retained for BLE discovery
+    uartProtocolInit();
+    wifiScannerInit();
+    bleScannerInit();
 
     if (!SPIFFS.begin(true)) {
         Serial.println("An error has occurred while mounting SPIFFS");
@@ -209,4 +215,7 @@ void loop() {
     dnsServer.processNextRequest();
     #endif
     server.handleClient();
+    uartProtocolLoop();
+    wifiScannerLoop();
+    bleScannerLoop();
 }
