@@ -12,7 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
 */
-#include <FreeRTOS.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <esp_bt.h>
 #include <SPIFFS.h>
 #include <Preferences.h>
@@ -28,9 +29,9 @@
 #include "src/ble_scanner.h"
 
 volatile bool jammerStopFlag = false;
-#if defined(ALLOW_SLEEP)
+// #if defined(ALLOW_SLEEP)
 volatile bool isSleeping = false;
-#endif
+// #endif
 
 int channel_method;
 String ssid_method, password_method;
@@ -180,10 +181,15 @@ void setup() {
     dnsServer.start(DNS_PORT, "*", BOARD_ADDRESS);
     #endif
 
+    // #if defined(BAD_BOARD_REVISION)
+    // WiFi.setTxPower((wifi_power_t)40);
+    // #else
+    // WiFi.setTxPower((wifi_power_t)78);
+    // #endif
+
+    // WiFi automatically operates at default power
     #if defined(BAD_BOARD_REVISION)
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
-    #else
-    WiFi.setTxPower(WIFI_POWER_19_5dBm);
     #endif
 
     setupWebServer();
@@ -211,11 +217,16 @@ void setup() {
 }
 
 void loop() {
-    #if defined(CAPTIVE_PORTAL)
-    dnsServer.processNextRequest();
-    #endif
-    server.handleClient();
-    uartProtocolLoop();
-    wifiScannerLoop();
-    bleScannerLoop();
+    // #if defined(CAPTIVE_PORTAL)
+    // dnsServer.processNextRequest();
+    // #endif
+    // server.handleClient();
+    // uartProtocolLoop();
+    // wifiScannerLoop();
+    // bleScannerLoop();
+    // delay(2);
+
+    Serial.println("[DEBUG] Loop started");
+
+    delay(1000);
 }

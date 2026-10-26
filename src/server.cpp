@@ -94,17 +94,17 @@ String generateETag(File &file) {
 
   mbedtls_sha256_context sha_context;
   mbedtls_sha256_init(&sha_context);
-  mbedtls_sha256_starts_ret(&sha_context, 0);
+  mbedtls_sha256_starts(&sha_context, 0);
 
   uint8_t buffer[1024];
   int bytesRead;
 
   while ((bytesRead = file.read(buffer, sizeof(buffer))) > 0) {
-    mbedtls_sha256_update_ret(&sha_context, buffer, bytesRead);
+    mbedtls_sha256_update(&sha_context, buffer, bytesRead);
   }
 
   uint8_t hash[32];
-  mbedtls_sha256_finish_ret(&sha_context, hash);
+  mbedtls_sha256_finish(&sha_context, hash);
   mbedtls_sha256_free(&sha_context);
 
   file.seek(0); 

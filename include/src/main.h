@@ -12,6 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
 */
+#pragma once
+#include <Arduino.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
 #ifndef MAIN_H
 #define MAIN_H
 

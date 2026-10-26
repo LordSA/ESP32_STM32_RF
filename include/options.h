@@ -60,9 +60,9 @@
  * 
  * This will set the board to only 8,5 dBm.
 */
-#define DEFAULT_SSID ""
-#define DEFAULT_PASSWORD ""
-#define DEFAULT_CHANNEL 13
+#define DEFAULT_SSID "ESP BITCH"
+#define DEFAULT_PASSWORD "11111111"
+#define DEFAULT_CHANNEL 1
 #define HIDDEN_SSID false
 
 #define CAPTIVE_PORTAL true
@@ -107,7 +107,7 @@
  * message instead of the bitmap, as less pixels = lower amperage
  * (x) SLEEP_DISPLAY_MSG: a short message to print on the display
 */
-#define ALLOW_SLEEP true
+// #define ALLOW_SLEEP true
 #define SLEEP_TIMEOUT 600000
 #define SLEEP_DISPLAY true
 #define SLEEP_DISPLAY_MSG "zzz..."
