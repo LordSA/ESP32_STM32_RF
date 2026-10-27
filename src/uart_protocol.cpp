@@ -1,6 +1,7 @@
 #include "src/uart_protocol.h"
 #include "src/wifi_scanner.h"
 #include "src/ble_scanner.h"
+#include "src/jammer.h"
 #include <HardwareSerial.h>
 
 static HardwareSerial SerialSTM(2); // UART2 (RX: GPIO16, TX: GPIO17)
@@ -44,6 +45,14 @@ static void processCommand(const String &cmd) {
         uint32_t freeHeap = ESP.getFreeHeap();
         uint32_t cpuFreq = ESP.getCpuFreqMHz();
         sendUartMessage("$DIAG,RESULT,CPU=" + String(cpuFreq) + "M,HEAP=" + String(freeHeap) + ",WIFI_OK,BLE_OK");
+    }
+    else if (cmd == "$LOCK"){
+        wifi_jam();
+        bluetooth_jam();
+        ble_jam();
+    }
+    else if (cmd == "$UNLOCK"){
+        stop_jammer();
     }
 }
 
