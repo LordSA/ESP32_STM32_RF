@@ -1,4 +1,8 @@
-# ESPnRF24 Jammer
+# 
+ESP32_STM32_RF
+readme will be updated 
+this repo changes its working architucture based on stm32 handling
+
 A low-power 2,4GHz wireless jammer based on `ESP32` and `nRF24LO1+PA+LNA`
 
 ## Features
