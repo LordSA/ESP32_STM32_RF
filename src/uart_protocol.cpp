@@ -48,19 +48,34 @@ static void processCommand(const String &cmd) {
         sendUartMessage("$DIAG,RESULT,CPU=" + String(cpuFreq) + "M,HEAP=" + String(freeHeap) + ",WIFI_OK,BLE_OK");
     }
     else if (cmd == "$LOCK"){
+        if (jammerTaskHandle == NULL) {  // ← check the HANDLE
+            xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);
+            Serial.printf("[UART] $LOCK: task created, handle=%p\n", jammerTaskHandle);
+        }
+        else {Serial.println("[UART] $LOCK: task already running, ignoring.");}
         sendUartMessage("$LOCK,OK");
-        if (jammerTask == NULL) {xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);}
- 
     }
-    else if (cmd == "$UNLOCK"){
+    else if (cmd == "$UNLOCK") {
+        Serial.printf("[UART] $UNLOCK: setting stop flag at %lu ms\n", millis());
         jammerStopFlag = true;
-        stop_jammer();
-        sendUartMessage("$UNLOCK,OK");  
-    }
+
+        // Wait up to 1s for the task to notice and self-delete
+        TickType_t start = xTaskGetTickCount();
+        while (jammerTaskHandle != NULL && (xTaskGetTickCount() - start) < pdMS_TO_TICKS(1000)) {
+        vTaskDelay(pdMS_TO_TICKS(10));}
+
+        if (jammerTaskHandle == NULL) {
+            Serial.println("[UART] $UNLOCK: task confirmed stopped.");
+            sendUartMessage("$UNLOCK,OK");
+        } 
+        else {
+            Serial.println("[UART] $UNLOCK: WARNING - task did not exit in time.");
+            sendUartMessage("$UNLOCK,ERROR");
+        }
+    }   
 }
 
 void uartProtocolLoop() {
-    // Regular heartbeat every 2.5s guarantees STM32 OLED shows "CONNECTED"
     if (millis() - lastHeartbeat >= 2500) {
         lastHeartbeat = millis();
         sendUartMessage("$STATUS,READY");
@@ -74,12 +89,13 @@ void uartProtocolLoop() {
                 rxBuffer[rxIndex] = '\0';
                 String commandStr = String(rxBuffer);
                 rxIndex = 0;
-                processCommand(commandStr);
+                processCommand(commandStr);  // already prints [RX <- STM32]
             }
         } else {
             if (rxIndex < (UART_BUF_SIZE - 1)) {
                 rxBuffer[rxIndex++] = c;
             } else {
+                Serial.println("[UART] WARNING: RX buffer overflow, resetting.");
                 rxIndex = 0;
             }
         }

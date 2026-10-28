@@ -14,7 +14,7 @@
 #define RADIO_MOSI_PIN      13
 #define RADIO_MISO_PIN      12
 #define RADIO_SPI_BUS       2
-#define RADIO_CLOCK_SPEED   8000000  // 8MHz (max for nRF24)
+#define RADIO_CLOCK_SPEED 10000000  // was 8000000    // 8MHz (max for nRF24)
 
 // --- nRF24L01 Radio 2 (if you have a second module) ---
 #define RADIO1_CE_PIN       15

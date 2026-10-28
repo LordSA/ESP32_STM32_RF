@@ -21,6 +21,6 @@ rf24_pa_dbm_e getPowerLevel();
 bool checkRadioStatus();
 void SPI_init();
 
-extern RF24 radio;
+extern RF24 radio;   // ← only this one
 
-#endif // RADIO_H
+#endif // RADIO_H   

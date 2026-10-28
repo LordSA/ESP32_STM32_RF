@@ -119,36 +119,30 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
   }
 }
 
-void wifi_jam() {
-  
-  isJamming = true;
 
-  while (!jammerStopFlag) { 
-      if (!checkRadioStatus()) 
+
+void wifi_jam() {
+    Serial.printf("[jam] wifi_jam() entered, stopFlag=%d\n", jammerStopFlag);
+
+    radio.setChannel(61);
+
+    uint32_t txCount = 0;
+    unsigned long lastPrint = millis();
+
+    while (!jammerStopFlag) {
+      radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
+      txCount++;
+      if (txCount % 1000 == 0 && !checkRadioStatus())
         break;
 
-      int channel;
-      for (channel = 0; channel < 13; channel++) {
-          if (channel == DEFAULT_CHANNEL && !DEFAULT_CHANNEL == 0) 
-            continue;
-
-          int i;
-          for (i = (channel * 5) + 1; i < (channel * 5) + 23; i++) {
-              if (jammerStopFlag)
-                break;
-
-              radio.setChannel(i);
-              
-              radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-              vTaskDelay(1);
-          }
+      if (millis() - lastPrint >= 2000) {
+        lastPrint = millis();
+        Serial.printf("[jam] alive: txCount=%u\n", txCount);
       }
-  }
-  // #if defined(HAS_OLED_SCREEN)
-  // returnDisplayToIdle(true);
-  // #endif
-}
+    }      
 
+    Serial.printf("[jam] Exited, total tx=%u\n", txCount);
+}      
 void wifi_channel(int channel){
 
   while (!jammerStopFlag){

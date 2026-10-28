@@ -22,6 +22,7 @@
 SPIClass *hspi_ptr;
 SPIClass *fspi_ptr;
 
+
 RF24 radio(RADIO_CE_PIN, RADIO_CSN_PIN, RADIO_CLOCK_SPEED);
 
 

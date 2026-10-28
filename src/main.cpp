@@ -53,27 +53,38 @@ void loadPreferences() {
  * Retained to satisfy server.cpp references while keeping ESP32 safe
  */
 void jammerTask(void* pvParameters) {
-    Serial.println("[jammer] Task started.");
+    Serial.printf("[jammer] Task started (handle=%p)\n", jammerTaskHandle);
     jammerStopFlag = false;
+
+    unsigned long t0 = millis();
+    Serial.printf("[jammer] Calling wifi_jam() at %lu ms\n", t0);
 
     wifi_jam();  // blocks THIS task, not loop()
 
+    Serial.printf("[jammer] wifi_jam() returned after %lu ms\n", millis() - t0);
+
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
+        Serial.println("[jammer] Task self-deleting.");
         jammerTaskHandle = NULL;
         xSemaphoreGive(jammerSemaphore);
     }
     vTaskDelete(NULL);
-}   
+}     
 
 void stopJamHandler() {
-    Serial.println("[jammer] Stop jam requested.");
+    Serial.printf("[jammer] Stop requested at %lu ms\n", millis());
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
         if (jammerTaskHandle != NULL) {
             jammerStopFlag = true;
+            Serial.printf("[jammer] Stop flag SET (task=%p still alive)\n", jammerTaskHandle);
+        } else {
+            Serial.println("[jammer] Stop requested but task already NULL.");
         }
         xSemaphoreGive(jammerSemaphore);
+    } else {
+        Serial.println("[jammer] ERROR: Could not acquire semaphore for stop.");
     }
-}
+}   
 
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
