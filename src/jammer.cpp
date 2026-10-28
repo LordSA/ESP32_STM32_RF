@@ -57,8 +57,6 @@ void stop_jammer() {
 
   radio.stopConstCarrier();
   radio.stopListening();
-  radio1.stopConstCarrier();
-  radio1.stopListening();
 }
 
 void jam_task(int method, int range_start, int range_end, ChannelType type, bool use_carrier) {
@@ -67,7 +65,6 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
 
   if (use_carrier) {
     radio.startConstCarrier(getPowerLevel(), 45);
-    radio1.startConstCarrier(getPowerLevel(), 45);
   }
 
   while (!jammerStopFlag) {
@@ -81,11 +78,9 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
             break;
 
           radio.setChannel(channel);
-          radio1.setChannel(nrf24_module_config_method == 0 ? channels_reversed[channel] : channel);
 
           if (!use_carrier) {
             radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-            radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
           }
           vTaskDelay(1);
         }
@@ -98,11 +93,9 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
         int random_channel = random(range_start, range_end);
 
         radio.setChannel(random_channel);
-        radio1.setChannel(nrf24_module_config_method == 0 ? random(range_end, range_end * 2) : random_channel);
 
         if (!use_carrier) {
           radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-          radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
         }
         vTaskDelay(1);
         break;
@@ -114,11 +107,9 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
             break;
 
           radio.setChannel(i);
-          radio1.setChannel(nrf24_module_config_method == 0 ? (i - range_end) : i);
 
           if (!use_carrier) {
             radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-            radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
           }
           vTaskDelay(1);
         }
@@ -152,10 +143,8 @@ void wifi_jam() {
                 break;
 
               radio.setChannel(i);
-              radio1.setChannel(nrf24_module_config_method == 0 ? 83 - i : i);
               
               radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-              radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
               vTaskDelay(1);
           }
       }
@@ -166,9 +155,6 @@ void wifi_jam() {
 }
 
 void wifi_channel(int channel){
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
-  // #endif
 
   while (!jammerStopFlag){
     if (!checkRadioStatus()) 
@@ -180,10 +166,8 @@ void wifi_channel(int channel){
         break;
 
       radio.setChannel(i);
-      radio1.setChannel(nrf24_module_config_method == 0 ? (channel * 5 + 23) - (i - (channel * 5)) : i);
 
       radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-      radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
       vTaskDelay(1);
     }
   }
@@ -209,10 +193,7 @@ void zigbee_jam(){
           break;
 
         radio.setChannel(i);
-        radio1.setChannel(nrf24_module_config_method == 0 ? 85-i : i);
-
         radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-        radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
         vTaskDelay(1);
       }
     }
@@ -223,15 +204,12 @@ void zigbee_jam(){
 }
 
 void misc_jam(int channel1, int channel2){
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("Misc jamming", JAMMER_FOOTER_MSG);
-  // #endif
+
 
   bool use_carrier = (misc_jam_method != 1);
 
   if (use_carrier) {
     radio.startConstCarrier(getPowerLevel(), 45);
-    radio1.startConstCarrier(getPowerLevel(), 45);
   }
 
   while (!jammerStopFlag){
@@ -244,11 +222,9 @@ void misc_jam(int channel1, int channel2){
         break;
 
       radio.setChannel(channel1 + i);
-      radio1.setChannel(nrf24_module_config_method == 0 ? channel2 - i : channel1 + i);
 
       if (!use_carrier){
         radio.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
-        radio1.writeFast(&JAM_TEXT, sizeof(JAM_TEXT));
       }
       vTaskDelay(1);
     }
@@ -273,18 +249,11 @@ void bluetooth_jam() {
     true
   );
 
-  #if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-  #endif
 } 
 
 void ble_jam() {
 
   isJamming = true;
-
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("BLE jamming", JAMMER_FOOTER_MSG);
-  // #endif
 
   jam_task(
     ble_jam_method,
