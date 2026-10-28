@@ -52,24 +52,42 @@ void loadPreferences() {
 /*
  * Retained to satisfy server.cpp references while keeping ESP32 safe
  */
+// Add near the top, next to jammerStopFlag:
+volatile int jam_mode = 0;  // 0 = wifi, 1 = bluetooth, 2 = ble, etc.
+
 void jammerTask(void* pvParameters) {
-    Serial.printf("[jammer] Task started (handle=%p)\n", jammerTaskHandle);
+    Serial.printf("[jammer] Task started, mode=%d\n", jam_mode);
     jammerStopFlag = false;
 
     unsigned long t0 = millis();
-    Serial.printf("[jammer] Calling wifi_jam() at %lu ms\n", t0);
 
-    wifi_jam();  // blocks THIS task, not loop()
+    switch (jam_mode) {
+        case 0:
+            Serial.println("[jammer] Calling wifi_jam()");
+            wifi_jam();
+            break;
+        case 1:
+            Serial.println("[jammer] Calling bluetooth_jam()");
+            bluetooth_jam();
+            break;
+        case 2:
+            Serial.println("[jammer] Calling ble_jam()");
+            ble_jam();
+            break;
+        default:
+            Serial.println("[jammer] Unknown mode, defaulting to wifi_jam()");
+            wifi_jam();
+            break;
+    }
 
-    Serial.printf("[jammer] wifi_jam() returned after %lu ms\n", millis() - t0);
+    Serial.printf("[jammer] Jam function returned after %lu ms\n", millis() - t0);
 
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
-        Serial.println("[jammer] Task self-deleting.");
         jammerTaskHandle = NULL;
         xSemaphoreGive(jammerSemaphore);
     }
     vTaskDelete(NULL);
-}     
+}      
 
 void stopJamHandler() {
     Serial.printf("[jammer] Stop requested at %lu ms\n", millis());
@@ -92,6 +110,7 @@ void setup() {
 
     // Initialize UART communication with STM32
     uartProtocolInit();
+    radio_txpower_method = 3;
 
     SPI_init();
 
@@ -102,6 +121,7 @@ void setup() {
     }
 
     loadPreferences();
+    
 
     if (ssid_method.length() == 0) {
         ssid_method = "ESP32_Scanner";

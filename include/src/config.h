@@ -27,6 +27,14 @@
 
 #define RADIO_POLLING_MS    50
 
+#define NRF_PA_EN_PIN  25
+#define NRF_LNA_EN_PIN 27
+
+#define RADIO_PA_EN_PIN   25
+#define RADIO_LNA_EN_PIN  27   
+
+
+
 // --- Jam payload ---
 static const uint8_t JAM_TEXT[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 

@@ -60,7 +60,10 @@ void configureRadio(RF24 &radio) {
   radio.setRetries(0, 0);
   radio.setRadiation(getPowerLevel(), RF24_2MBPS, false);
   radio.setCRCLength(RF24_CRC_DISABLED);
-}
+
+  const uint8_t txAddr[5] = { 0xC2, 0xC2, 0xC2, 0xC2, 0xC2 };
+  radio.openWritingPipe(txAddr);
+}   
 
 bool checkRadioStatus() {
   if (!radio.isChipConnected()) {
@@ -98,6 +101,12 @@ void SPI_init() {
             delay(RADIO_POLLING_MS);
         }
     }
+
+    pinMode(RADIO_PA_EN_PIN, OUTPUT);
+    pinMode(RADIO_LNA_EN_PIN, OUTPUT);
+    digitalWrite(RADIO_PA_EN_PIN, HIGH);
+    digitalWrite(RADIO_LNA_EN_PIN, HIGH);
+    Serial.println("PA+LNA enabled.");
 
     configureRadio(radio);
     Serial.println("Radio 0 Details:");

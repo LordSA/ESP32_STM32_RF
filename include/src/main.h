@@ -34,6 +34,8 @@ extern TaskHandle_t jammerTaskHandle;
 extern SemaphoreHandle_t jammerSemaphore;
 extern Preferences preferences;
 
+extern volatile int jam_mode;   
+
 struct JammerTaskData {
     std::function<void()> action;
 };
