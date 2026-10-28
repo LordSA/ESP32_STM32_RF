@@ -3,6 +3,7 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include "src/uart_protocol.h"
+#include "src/jammer.h"
 
 static BLEScan* pBLEScan = nullptr;
 static bool bleScanning = false;
@@ -46,6 +47,8 @@ static void bleScanCompleteCB(BLEScanResults foundDevices) {
 }
 
 void startBleScan(uint32_t duration_sec) {
+    
+    if (isJamming) return; 
     if (bleScanning) return;
 
     if (pBLEScan == nullptr) {
@@ -58,7 +61,10 @@ void startBleScan(uint32_t duration_sec) {
 }
 
 void bleScannerLoop() {
-    // BLE scanning runs asynchronously with callback
+    if (bleScanning && isJamming) {   // ← add
+        pBLEScan->stop();
+        bleScanning = false;
+    }
 }
 
 bool isBleScanning() {

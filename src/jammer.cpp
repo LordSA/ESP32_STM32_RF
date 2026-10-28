@@ -16,9 +16,10 @@
 #include "src/radio.h"
 #include "src/server.h"
 #include "src/main.h"
-#include "src/display.h"
 #include "src/uart_protocol.h"
+#include "src/config.h"   
 
+volatile bool isJamming = false;
 
 const std::vector<byte> bluetooth_channels = {
   32, 34, 46, 
@@ -50,6 +51,8 @@ auto getReversedChannels(ChannelType type) -> std::vector<byte> {
 }
 
 void stop_jammer() {
+  isJamming = false;
+
   Serial.println("Stopping jammer. Disabling radios.");
 
   radio.stopConstCarrier();
@@ -126,9 +129,12 @@ void jam_task(int method, int range_start, int range_end, ChannelType type, bool
 }
 
 void wifi_jam() {
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
-  #endif
+  
+  isJamming = true;
+
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
+  // #endif
   // Serial.println("Wifi jamming.", JAMMER_FOOTER_MSG);
   
   while (!jammerStopFlag) { 
@@ -154,15 +160,15 @@ void wifi_jam() {
           }
       }
   }
-  #if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-  #endif
+  // #if defined(HAS_OLED_SCREEN)
+  // returnDisplayToIdle(true);
+  // #endif
 }
 
 void wifi_channel(int channel){
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
-  #endif
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   while (!jammerStopFlag){
     if (!checkRadioStatus()) 
@@ -187,9 +193,9 @@ void wifi_channel(int channel){
 }
 
 void zigbee_jam(){
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Zigbee jamming", JAMMER_FOOTER_MSG);
-  #endif
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Zigbee jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   while (!jammerStopFlag){
     if (!checkRadioStatus())
@@ -217,9 +223,9 @@ void zigbee_jam(){
 }
 
 void misc_jam(int channel1, int channel2){
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Misc jamming", JAMMER_FOOTER_MSG);
-  #endif
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Misc jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   bool use_carrier = (misc_jam_method != 1);
 
@@ -253,9 +259,12 @@ void misc_jam(int channel1, int channel2){
 }
 
 void bluetooth_jam() {
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Bluetooth jamming", JAMMER_FOOTER_MSG);
-  #endif
+  
+  isJamming = true;
+
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Bluetooth jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   jam_task(
     bluetooth_jam_method, 
@@ -270,9 +279,12 @@ void bluetooth_jam() {
 } 
 
 void ble_jam() {
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("BLE jamming", JAMMER_FOOTER_MSG);
-  #endif
+
+  isJamming = true;
+
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("BLE jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   jam_task(
     ble_jam_method,
@@ -287,9 +299,9 @@ void ble_jam() {
 }
 
 void drone_jam() {
-  #if defined(HAS_OLED_SCREEN)
-  printOnDisplay("Drone jamming", JAMMER_FOOTER_MSG);
-  #endif
+  // #if defined(HAS_OLED_SCREEN)
+  // printOnDisplay("Drone jamming", JAMMER_FOOTER_MSG);
+  // #endif
 
   jam_task(
     drone_jam_method, 

@@ -1,6 +1,7 @@
 #include "src/wifi_scanner.h"
 #include <WiFi.h>
 #include "src/uart_protocol.h"
+#include "src/jammer.h"
 
 static bool scanning = false;
 
@@ -10,6 +11,9 @@ void wifiScannerInit() {
 }
 
 void startWifiScan() {
+
+    if (isJamming) return;
+    
     if (scanning) {
         Serial.println("[Wi-Fi] Scan already in progress...");
         return;
@@ -27,6 +31,8 @@ bool isWifiScanning() {
 
 void wifiScannerLoop() {
     if (!scanning) return;
+
+    if (isJamming) { scanning = false; return; }
 
     int16_t n = WiFi.scanComplete();
     if (n == WIFI_SCAN_RUNNING) {

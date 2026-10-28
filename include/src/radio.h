@@ -18,10 +18,9 @@
 #include <RF24.h>
 
 rf24_pa_dbm_e getPowerLevel();
-void toggleRadioSleep(RF24 &radio, bool sleep, int num);
 bool checkRadioStatus();
+void SPI_init();
 
 extern RF24 radio;
-extern RF24 radio1;
 
 #endif // RADIO_H

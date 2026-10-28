@@ -178,7 +178,7 @@ void sendHtmlAndExecuteAsync(const char* htmlResponse, std::function<void()> jam
     Serial.println("Creating new jammer task on Core 1.");
     jammerStopFlag = false;
 
-    auto dataPtr = std::make_unique<jammerTaskData>();
+    auto dataPtr = std::make_unique<JammerTaskData>();
     dataPtr->action = jamFunction;
 
     // Run jammerTask on the second core with max priority

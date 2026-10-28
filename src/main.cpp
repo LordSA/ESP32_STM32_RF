@@ -14,11 +14,11 @@
 #include "src/main.h"
 #include "src/jammer.h"
 #include "src/server.h"
-#include "src/display.h"
 #include "src/radio.h"
 #include "src/uart_protocol.h"
 #include "src/wifi_scanner.h"
 #include "src/ble_scanner.h"
+#include "src/config.h"
 
 volatile bool jammerStopFlag = false;
 volatile bool isSleeping = false; // Prevents radio.cpp linker error
@@ -54,7 +54,7 @@ void loadPreferences() {
  */
 void jammerTask(void* pvParameters) {
     Serial.println("[jammer] Web-initiated task started.");
-    std::unique_ptr<jammerTaskData> dataPtr(static_cast<jammerTaskData*>(pvParameters));
+    std::unique_ptr<JammerTaskData> dataPtr(static_cast<JammerTaskData*>(pvParameters));
 
     jammerStopFlag = false;
     if (dataPtr && dataPtr->action) {
@@ -85,6 +85,8 @@ void setup() {
 
     // Initialize UART communication with STM32
     uartProtocolInit();
+
+    SPI_init();
 
     if (!SPIFFS.begin(true)) {
         Serial.println("Warning: SPIFFS mount failed, continuing.");

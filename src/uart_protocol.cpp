@@ -3,6 +3,7 @@
 #include "src/ble_scanner.h"
 #include "src/jammer.h"
 #include <HardwareSerial.h>
+#include "src/config.h"   
 
 static HardwareSerial SerialSTM(2); // UART2 (RX: GPIO16, TX: GPIO17)
 static char rxBuffer[UART_BUF_SIZE];
@@ -50,9 +51,11 @@ static void processCommand(const String &cmd) {
         wifi_jam();
         bluetooth_jam();
         ble_jam();
+        sendUartMessage("$LOCK,OK"); 
     }
     else if (cmd == "$UNLOCK"){
         stop_jammer();
+        sendUartMessage("$UNLOCK,OK");  
     }
 }
 

@@ -25,6 +25,9 @@ void zigbee_jam();
 void misc_jam(int channel1, int channel2);
 void stop_jammer();
 
+// src/jammer.h
+extern volatile bool isJamming;   
+
 enum class ChannelType {
     BLUETOOTH,
     BLE, NONE
