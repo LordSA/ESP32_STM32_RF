@@ -48,12 +48,12 @@ static void processCommand(const String &cmd) {
         sendUartMessage("$DIAG,RESULT,CPU=" + String(cpuFreq) + "M,HEAP=" + String(freeHeap) + ",WIFI_OK,BLE_OK");
     }
     else if (cmd == "$LOCK"){
-        wifi_jam();
-        bluetooth_jam();
-        ble_jam();
-        sendUartMessage("$LOCK,OK"); 
+        sendUartMessage("$LOCK,OK");
+        if (jammerTask == NULL) {xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);}
+ 
     }
     else if (cmd == "$UNLOCK"){
+        jammerStopFlag = true;
         stop_jammer();
         sendUartMessage("$UNLOCK,OK");  
     }

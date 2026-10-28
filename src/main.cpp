@@ -53,21 +53,17 @@ void loadPreferences() {
  * Retained to satisfy server.cpp references while keeping ESP32 safe
  */
 void jammerTask(void* pvParameters) {
-    Serial.println("[jammer] Web-initiated task started.");
-    std::unique_ptr<JammerTaskData> dataPtr(static_cast<JammerTaskData*>(pvParameters));
-
+    Serial.println("[jammer] Task started.");
     jammerStopFlag = false;
-    if (dataPtr && dataPtr->action) {
-        dataPtr->action();
-    }
-    Serial.println("[Jammer] Web-initiated task completed.");
+
+    wifi_jam();  // blocks THIS task, not loop()
 
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
         jammerTaskHandle = NULL;
         xSemaphoreGive(jammerSemaphore);
     }
     vTaskDelete(NULL);
-}
+}   
 
 void stopJamHandler() {
     Serial.println("[jammer] Stop jam requested.");
@@ -128,6 +124,7 @@ void setup() {
 
     Serial.println("[READY] ESP32 Ready for STM32 Commands.");
 }
+
 
 void loop() {
     #if defined(CAPTIVE_PORTAL)

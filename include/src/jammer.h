@@ -14,6 +14,7 @@
 */
 #ifndef JAMMER_H
 #define JAMMER_H
+#include <freertos/FreeRTOS.h> 
 
 void SPI_init();
 void bluetooth_jam();
@@ -27,6 +28,9 @@ void stop_jammer();
 
 // src/jammer.h
 extern volatile bool isJamming;   
+extern volatile bool jammerStopFlag;
+extern TaskHandle_t jammerTaskHandle;
+void jammerTask(void* pvParameters);
 
 enum class ChannelType {
     BLUETOOTH,

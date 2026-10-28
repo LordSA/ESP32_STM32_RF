@@ -123,11 +123,6 @@ void wifi_jam() {
   
   isJamming = true;
 
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("Wi-Fi jamming", JAMMER_FOOTER_MSG);
-  // #endif
-  // Serial.println("Wifi jamming.", JAMMER_FOOTER_MSG);
-  
   while (!jammerStopFlag) { 
       if (!checkRadioStatus()) 
         break;
