@@ -10,6 +10,7 @@
 #include <SPIFFS.h>
 #include <Preferences.h>
 #include <DNSServer.h>
+#include <memory>
 
 #include "src/main.h"
 #include "src/jammer.h"
@@ -21,7 +22,7 @@
 #include "src/config.h"
 
 volatile bool jammerStopFlag = false;
-volatile bool isSleeping = false; // Prevents radio.cpp linker error
+volatile bool isSleeping = false;
 
 int channel_method;
 String ssid_method, password_method;
@@ -31,7 +32,9 @@ SemaphoreHandle_t jammerSemaphore;
 Preferences preferences;
 DNSServer dnsServer;
 
-void halt_esp(){
+volatile int jam_mode = JAM_MODE_WIFI;
+
+void halt_esp() {
     Serial.println("ESP halt requested, ignoring to stay alive for STM32.");
 }
 
@@ -47,70 +50,65 @@ void loadPreferences() {
     password_method = preferences.getString("wifi_pass", DEFAULT_PASSWORD);
     channel_method = preferences.getInt("wifi_channel", DEFAULT_CHANNEL);
     preferences.end();
+
+    if (radio_txpower_method < 0 || radio_txpower_method > 3)
+        radio_txpower_method = DEFAULT_TXPOWER_METHOD;
 }
 
-/*
- * Retained to satisfy server.cpp references while keeping ESP32 safe
- */
-// Add near the top, next to jammerStopFlag:
-volatile int jam_mode = 0;  // 0 = wifi, 1 = bluetooth, 2 = ble, etc.
-
 void jammerTask(void* pvParameters) {
-    Serial.printf("[jammer] Task started, mode=%d\n", jam_mode);
+    Serial.printf("[jammer] task started, mode=%d\n", jam_mode);
     jammerStopFlag = false;
+
+    auto* data = static_cast<JammerTaskData*>(pvParameters);
+    std::unique_ptr<JammerTaskData> owned(data);
 
     unsigned long t0 = millis();
 
-    switch (jam_mode) {
-        case 0:
-            Serial.println("[jammer] Calling wifi_jam()");
-            wifi_jam();
-            break;
-        case 1:
-            Serial.println("[jammer] Calling bluetooth_jam()");
-            bluetooth_jam();
-            break;
-        case 2:
-            Serial.println("[jammer] Calling ble_jam()");
-            ble_jam();
-            break;
-        default:
-            Serial.println("[jammer] Unknown mode, defaulting to wifi_jam()");
-            wifi_jam();
-            break;
+    if (data && data->action) {
+        data->action();                       /* web route: exact function */
+    } else {
+        switch (jam_mode) {                   /* UART path: pvParameters == nullptr */
+            case JAM_MODE_BT:     bluetooth_jam(); break;
+            case JAM_MODE_BLE:    ble_jam();       break;
+            case JAM_MODE_DRONE:  drone_jam();     break;
+            case JAM_MODE_ZIGBEE: zigbee_jam();    break;
+            case JAM_MODE_WIFI:
+            default:              wifi_jam();      break;
+        }
     }
 
-    Serial.printf("[jammer] Jam function returned after %lu ms\n", millis() - t0);
+    Serial.printf("[jammer] jam function returned after %lu ms\n", millis() - t0);
 
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
         jammerTaskHandle = NULL;
         xSemaphoreGive(jammerSemaphore);
     }
     vTaskDelete(NULL);
-}      
+}
 
 void stopJamHandler() {
-    Serial.printf("[jammer] Stop requested at %lu ms\n", millis());
+    Serial.printf("[jammer] stop requested at %lu ms\n", millis());
     if (xSemaphoreTake(jammerSemaphore, portMAX_DELAY) == pdTRUE) {
         if (jammerTaskHandle != NULL) {
             jammerStopFlag = true;
-            Serial.printf("[jammer] Stop flag SET (task=%p still alive)\n", jammerTaskHandle);
+            Serial.printf("[jammer] stop flag set (task=%p alive)\n", jammerTaskHandle);
         } else {
-            Serial.println("[jammer] Stop requested but task already NULL.");
+            Serial.println("[jammer] stop requested but task already NULL.");
         }
         xSemaphoreGive(jammerSemaphore);
     } else {
-        Serial.println("[jammer] ERROR: Could not acquire semaphore for stop.");
+        Serial.println("[jammer] ERROR: could not acquire semaphore for stop.");
     }
-}   
+}
 
 void setup() {
     Serial.begin(SERIAL_BAUD_RATE);
     Serial.println("\n[BOOT] ESP32 Wireless Co-Processor Booting...");
 
-    // Initialize UART communication with STM32
     uartProtocolInit();
-    radio_txpower_method = 3;
+
+    /* NVS first, so the saved TX power reaches configureRadio() */
+    loadPreferences();
 
     SPI_init();
 
@@ -120,29 +118,21 @@ void setup() {
         Serial.println("SPIFFS mounted successfully.");
     }
 
-    loadPreferences();
-    
+    if (ssid_method.length() == 0) ssid_method = DEFAULT_SSID;
+    if (channel_method < 1 || channel_method > 11) channel_method = DEFAULT_CHANNEL;
 
-    if (ssid_method.length() == 0) {
-        ssid_method = "ESP32_Scanner";
-    }
-    if (channel_method < 1 || channel_method > 11) {
-        channel_method = 1;
-    }
-
-    // Set dual mode (WIFI_AP_STA) so Wi-Fi scanning functions reliably
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAPConfig(BOARD_ADDRESS, BOARD_ADDRESS, IPAddress(255, 255, 255, 0));
-    
+
     if (WiFi.softAP(ssid_method.c_str(), password_method.c_str(), channel_method, HIDDEN_SSID)) {
         Serial.printf("Started access point: %s on CH %d\n", ssid_method.c_str(), channel_method);
     } else {
         Serial.println("Warning: AP start failed, continuing in scanner mode.");
     }
 
-    #if defined(CAPTIVE_PORTAL)
+#if defined(CAPTIVE_PORTAL)
     dnsServer.start(DNS_PORT, "*", BOARD_ADDRESS);
-    #endif
+#endif
 
     setupWebServer();
     Serial.println("HTTP server started.");
@@ -156,17 +146,15 @@ void setup() {
     Serial.println("[READY] ESP32 Ready for STM32 Commands.");
 }
 
-
 void loop() {
-    #if defined(CAPTIVE_PORTAL)
+#if defined(CAPTIVE_PORTAL)
     dnsServer.processNextRequest();
-    #endif
+#endif
     server.handleClient();
-    
+
     uartProtocolLoop();
     wifiScannerLoop();
     bleScannerLoop();
 
-    // Feeds FreeRTOS Idle task and prevents TG1WDT Watchdog resets
     delay(2);
 }

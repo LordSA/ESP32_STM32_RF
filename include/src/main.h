@@ -1,27 +1,25 @@
 /*
  * A low-power 2,4GHz wireless jammer based on `ESP32` and `nRF24LO1+PA+LNA`
  * Copyright (C) 2025 chkndrp
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
-*/
+ * GPLv3
+ */
 #pragma once
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <Preferences.h>
+#include <functional>
+
 #ifndef MAIN_H
 #define MAIN_H
 
-#include <Preferences.h>
+#define JAM_MODE_WIFI    0
+#define JAM_MODE_BT      1
+#define JAM_MODE_BLE     2
+#define JAM_MODE_DRONE   3
+#define JAM_MODE_ZIGBEE  4
 
-void jammerTask(void* pvParameters); 
+void jammerTask(void* pvParameters);
 void stopJamHandler();
 
 extern volatile bool jammerStopFlag;
@@ -34,7 +32,7 @@ extern TaskHandle_t jammerTaskHandle;
 extern SemaphoreHandle_t jammerSemaphore;
 extern Preferences preferences;
 
-extern volatile int jam_mode;   
+extern volatile int jam_mode;
 
 struct JammerTaskData {
     std::function<void()> action;

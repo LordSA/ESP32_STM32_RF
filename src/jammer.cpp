@@ -1,17 +1,11 @@
 /*
  * A low-power 2,4GHz wireless jammer based on `ESP32` and `nRF24LO1+PA+LNA`
  * Copyright (C) 2025 chkndrp
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GPLv3
  */
+#include <vector>
+#include <Arduino.h>
+
 #include "src/jammer.h"
 #include "src/radio.h"
 #include "src/server.h"
@@ -21,281 +15,209 @@
 
 volatile bool isJamming = false;
 
-const std::vector<byte> bluetooth_channels = {34, 36, 48, 50, 52, 54, 2, 3, 4, 6, 8, 10, 24, 26, 28, 30, 32, 76, 78, 80, 82};
-const std::vector<byte> ble_channels = {
-    2, 26, 80};
+/* BLE: advertising 37/38/39 (nRF 2/26/80) plus data ch 0..36 (nRF 4..76 step 2) */
+static const std::vector<uint8_t> ble_channels = {
+  2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40,
+  42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80
+};
 
-auto getReversedChannels(ChannelType type) -> std::vector<byte>
+/* Non-blocking burst. Returns false when the 3-deep FIFO is full,
+ * which is exactly the pacing we want. */
+static inline void txBurst()
 {
-  std::vector<byte> reversed_list;
+  radio.startFastWrite(&JAM_TEXT, sizeof(JAM_TEXT), false);
+}
 
-  switch (type)
-  {
-  case ChannelType::BLUETOOTH:
-    reversed_list = bluetooth_channels;
-    break;
-  case ChannelType::BLE:
-    reversed_list = ble_channels;
-    break;
-  }
+/* Common entry setup for every jam path. */
+static inline void jamBegin()
+{
+  jammerStopFlag = false;
+  isJamming = true;
+  radio.stopConstCarrier();
+  radio.stopListening();
+  radio.setAutoAck(false);
+  radio.setRetries(0, 0);
+  radio.setDataRate(RF24_1MBPS);
+  radio.setPayloadSize(sizeof(JAM_TEXT));
+  radio.setPALevel(getPowerLevel());
+}
 
-  std::reverse(reversed_list.begin(), reversed_list.end());
-  return reversed_list;
+static inline void jamEnd()
+{
+  radio.stopConstCarrier();
+  isJamming = false;
 }
 
 void stop_jammer()
 {
   isJamming = false;
-
   Serial.println("Stopping jammer. Disabling radios.");
-
   radio.stopConstCarrier();
   radio.stopListening();
 }
 
 void jam_task(int method, int range_start, int range_end, ChannelType type, bool use_carrier)
 {
-  const auto channels = (type == ChannelType::BLUETOOTH) ? bluetooth_channels : ble_channels;
-  const auto channels_reversed = getReversedChannels(type);
+  const std::vector<uint8_t> &channels =
+      (type == ChannelType::BLUETOOTH) ? ble_channels : ble_channels;
 
-  Serial.printf("[jam_task] entered: method=%d, range=[%d,%d], carrier=%d\n",
-                method, range_start, range_end, use_carrier);
+  jamBegin();
 
-  if (use_carrier)
-  {
-    Serial.println("[jam_task] Starting constant carrier...");
-    radio.startConstCarrier(getPowerLevel(), 45);
-  }
+  if (use_carrier) radio.startConstCarrier(getPowerLevel(), 50);
 
   uint32_t iterations = 0;
   unsigned long lastPrint = millis();
+  int statusCounter = 0;
+
+  Serial.printf("[jam_task] enter method=%d range=[%d,%d) carrier=%d\n",
+                method, range_start, range_end, use_carrier);
 
   while (!jammerStopFlag)
   {
-    if (!checkRadioStatus())
-      break;
+    if (++statusCounter >= 500) {
+      statusCounter = 0;
+      if (!checkRadioStatus()) break;
+    }
 
     switch (method)
     {
-    case 0:
-    {
-      for (byte channel : channels)
-      {
-        if (jammerStopFlag)
-          break;
-        radio.setChannel(channel);
-        if (!use_carrier)
-        {
-          radio.write(&JAM_TEXT, sizeof(JAM_TEXT));   
-        }
+    case 0:                                    /* walk the channel list */
+      for (uint8_t ch : channels) {
+        if (jammerStopFlag) break;
+        radio.setChannel(ch);
+        if (!use_carrier) txBurst();
       }
       break;
-    }
-    case 1:
-    {
-      if (jammerStopFlag)
-        break;
-      int random_channel = random(range_start, range_end);
-      radio.setChannel(random_channel);
-      if (!use_carrier)
-      {
-        radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
+
+    case 1:                                    /* random channel from list */
+      radio.setChannel(channels[random(0, (long)channels.size())]);
+      if (!use_carrier) txBurst();
+      break;
+
+    case 2:                                    /* linear range sweep */
+      for (int i = range_start; i < range_end; ++i) {
+        if (jammerStopFlag) break;
+        radio.setChannel(i);
+        if (!use_carrier) txBurst();
       }
+      break;
+
+    default:
       vTaskDelay(1);
       break;
     }
-    case 2:
-    {
-      for (int i = range_start; i < range_end; ++i)
-      {
-        if (jammerStopFlag)
-          break;
-        radio.setChannel(i);
-        if (!use_carrier)
-        {
-          uint32_t t = micros();
-          radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
-          uint32_t dt = micros() - t;
-          if (dt > 5000)
-          { // log if any single write takes >5ms
-            Serial.printf("[jam] SLOW WRITE on ch=%d: %lu us\n", i, dt);
-          }
-        }
-      }
-      break;
-    }
-    }
 
     iterations++;
+    taskYIELD();
 
-    if (millis() - lastPrint >= 2000)
-    {
+    if (millis() - lastPrint >= 2000) {
       lastPrint = millis();
-      Serial.printf("[jam_task] alive: iter=%u, method=%d, carrier=%d\n",
+      Serial.printf("[jam_task] alive iter=%u method=%d carrier=%d\n",
                     iterations, method, use_carrier);
     }
   }
 
-  Serial.printf("[jam_task] exited, total iter=%u\n", iterations);
+  jamEnd();
+  Serial.printf("[jam_task] exit iter=%u\n", iterations);
 }
 
 void wifi_jam()
 {
-  Serial.printf("[jam] wifi_jam() entered, stopFlag=%d\n", jammerStopFlag);
+  jamBegin();
 
-  radio.setChannel(61);
-
-  uint32_t txCount = 0;
-  unsigned long lastPrint = millis();
-
-  while (!jammerStopFlag)
-  {
-    radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
-    txCount++;
-    if (txCount % 1000 == 0 && !checkRadioStatus())
-      break;
-
-    if (millis() - lastPrint >= 2000)
-    {
-      lastPrint = millis();
-      Serial.printf("[jam] alive: txCount=%u\n", txCount);
+  while (!jammerStopFlag) {
+    for (int i = 2; i <= 84; i++) {           /* WiFi ch1..14, every sub-channel */
+      if (jammerStopFlag) break;
+      radio.setChannel(i);
+      txBurst();
     }
+    if (!checkRadioStatus()) break;
+    taskYIELD();
   }
 
-  Serial.printf("[jam] Exited, total tx=%u\n", txCount);
+  jamEnd();
 }
+
 void wifi_channel(int channel)
 {
+  jamBegin();
 
-  while (!jammerStopFlag)
-  {
-    if (!checkRadioStatus())
-      break;
+  /* nRF24 RF_CH n = 2400+n MHz. WiFi ch c centres at 2407+5c, span +/-11 MHz. */
+  const int lo = max(2, 5 * channel - 4);
+  const int hi = min(125, 5 * channel + 18);
 
-    int i;
-    for (i = (channel * 5) + 1; i < (channel * 5) + 23; i++)
-    {
-      if (jammerStopFlag)
-        break;
-
+  while (!jammerStopFlag) {
+    for (int i = lo; i <= hi; i++) {
+      if (jammerStopFlag) break;
       radio.setChannel(i);
-
-      radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
-      vTaskDelay(1);
+      txBurst();
     }
+    if (!checkRadioStatus()) break;
+    taskYIELD();
   }
-#if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-#endif
+
+  jamEnd();
 }
 
 void zigbee_jam()
 {
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("Zigbee jamming", JAMMER_FOOTER_MSG);
-  // #endif
+  jamBegin();
 
-  while (!jammerStopFlag)
-  {
-    if (!checkRadioStatus())
-      break;
-
-    int channel;
-    for (channel = 11; channel < 27; channel++)
-    {
-      int i;
-      for (i = 5 + 5 * (channel - 11); i < (5 + 5 * (channel - 11)) + 6; i++)
-      {
-        if (jammerStopFlag)
-          break;
-
+  while (!jammerStopFlag) {
+    for (int c = 11; c <= 26; c++) {
+      const int start = 5 + 5 * (c - 11);
+      for (int i = start; i < start + 6; i++) {
+        if (jammerStopFlag) break;
         radio.setChannel(i);
-        radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
-        vTaskDelay(1);
+        txBurst();
       }
     }
+    if (!checkRadioStatus()) break;
+    taskYIELD();
   }
-#if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-#endif
+
+  jamEnd();
 }
 
 void misc_jam(int channel1, int channel2)
 {
+  const bool use_carrier = (misc_jam_method != 1);
 
-  bool use_carrier = (misc_jam_method != 1);
+  jamBegin();
+  if (use_carrier) radio.startConstCarrier(getPowerLevel(), channel1);
 
-  if (use_carrier)
-  {
-    radio.startConstCarrier(getPowerLevel(), 45);
+  if (channel2 < channel1) {
+    const int t = channel1; channel1 = channel2; channel2 = t;
   }
+  channel1 = constrain(channel1, 0, 125);
+  channel2 = constrain(channel2, 0, 125);
 
-  while (!jammerStopFlag)
-  {
-    if (!checkRadioStatus())
-      break;
-
-    int i;
-    for (i = 0; i <= channel2 - channel1; i++)
-    {
-      if (jammerStopFlag)
-        break;
-
-      radio.setChannel(channel1 + i);
-
-      if (!use_carrier)
-      {
-        radio.write(&JAM_TEXT, sizeof(JAM_TEXT));
-      }
-      vTaskDelay(1);
+  while (!jammerStopFlag) {
+    for (int i = channel1; i <= channel2; i++) {
+      if (jammerStopFlag) break;
+      radio.setChannel(i);
+      if (!use_carrier) txBurst();
     }
+    if (!checkRadioStatus()) break;
+    taskYIELD();
   }
-#if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-#endif
+
+  jamEnd();
 }
 
-void bluetooth_jam() {
-  isJamming = true;
-  Serial.println("[jam] bluetooth_jam() - fixed freq offset");
-
-  jam_task(
-    2,
-    2, 81,   // ← was 0, 79. Now: nRF24 ch 2 = 2402 MHz = BT ch 0
-    ChannelType::BLUETOOTH,
-    false
-  );
-}   
+void bluetooth_jam()
+{
+  /* nRF24 ch 2 == 2402 MHz == BT channel 0; range end 83 covers BT ch 80 */
+  jam_task(2, 2, 83, ChannelType::BLUETOOTH, false);
+}
 
 void ble_jam()
 {
-
-  isJamming = true;
-
-  jam_task(
-      ble_jam_method,
-      0, ble_channels.size(),
-      ChannelType::BLE,
-      false);
-
-#if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-#endif
+  /* method 0 walks the full adv+data channel list */
+  jam_task(0, 0, 0, ChannelType::BLE, false);
 }
 
 void drone_jam()
 {
-  // #if defined(HAS_OLED_SCREEN)
-  // printOnDisplay("Drone jamming", JAMMER_FOOTER_MSG);
-  // #endif
-
-  jam_task(
-      drone_jam_method,
-      0, 125,
-      ChannelType::NONE,
-      true);
-
-#if defined(HAS_OLED_SCREEN)
-  returnDisplayToIdle(true);
-#endif
+  jam_task(2, 0, 125, ChannelType::NONE, true);
 }

@@ -14,9 +14,9 @@
 #define RADIO_MOSI_PIN      13
 #define RADIO_MISO_PIN      12
 #define RADIO_SPI_BUS       2
-#define RADIO_CLOCK_SPEED 10000000  // was 8000000    // 8MHz (max for nRF24)
+#define RADIO_CLOCK_SPEED   10000000
 
-// --- nRF24L01 Radio 2 (if you have a second module) ---
+// --- nRF24L01 Radio 2 (spare, unused) ---
 #define RADIO1_CE_PIN       15
 #define RADIO1_CSN_PIN      4
 #define RADIO1_SCK_PIN      18
@@ -27,15 +27,11 @@
 
 #define RADIO_POLLING_MS    50
 
-#define NRF_PA_EN_PIN  25
-#define NRF_LNA_EN_PIN 27
+// --- PA/LNA switch ---
+#define RADIO_PA_EN_PIN     25
+#define RADIO_LNA_EN_PIN    27
 
-#define RADIO_PA_EN_PIN   25
-#define RADIO_LNA_EN_PIN  27   
-
-
-
-// --- Jam payload ---
+// --- Jam payload: 32 x 0xFF, ~264us of air at 1Mbps ---
 static const uint8_t JAM_TEXT[32] = {
   0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
   0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
@@ -43,20 +39,23 @@ static const uint8_t JAM_TEXT[32] = {
   0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF
 };
 
+// --- Boot-time radio self-test (comment out once working) ---
+#define RADIO_SELFTEST      1
+
 // --- WiFi AP defaults ---
 #define DEFAULT_SSID        "ESP32_Scanner"
 #define DEFAULT_PASSWORD    "password123"
 #define DEFAULT_CHANNEL     1
-#define HIDDEN_SSID         0  // 0 = visible, 1 = hidden
+#define HIDDEN_SSID         0
 #define BOARD_ADDRESS       IPAddress(192, 168, 4, 1)
 
 // --- Preferences ---
 #define NVS_NAME            "esp32_config"
-#define DEFAULT_TXPOWER_METHOD  2  // 0=MIN, 1=MED, 2=MAX, 3=ERROR
+#define DEFAULT_TXPOWER_METHOD  2   // 0=MIN 1=LOW 2=HIGH 3=MAX
 
 // --- Serial ---
 #define SERIAL_BAUD_RATE    115200
 
-// --- Captive portal (optional) ---
+// --- Captive portal ---
 #define CAPTIVE_PORTAL
-#define DNS_PORT            53   
+#define DNS_PORT            53

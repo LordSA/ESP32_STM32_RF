@@ -6,10 +6,22 @@
 #include "src/config.h"
 #include "src/main.h"
 
-static HardwareSerial SerialSTM(2); // UART2 (RX: GPIO16, TX: GPIO17)
+static HardwareSerial SerialSTM(2);
 static char rxBuffer[UART_BUF_SIZE];
 static size_t rxIndex = 0;
 static uint32_t lastHeartbeat = 0;
+
+static void startJam(int mode, const char* tag)
+{
+    jam_mode = mode;
+    if (jammerTaskHandle == NULL) {
+        jammerStopFlag = false;
+        xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);
+        Serial.printf("[UART] %s: task created\n", tag);
+    } else {
+        Serial.printf("[UART] %s: task already running, mode changed only\n", tag);
+    }
+}
 
 void uartProtocolInit()
 {
@@ -22,7 +34,7 @@ void uartProtocolInit()
 void sendUartMessage(const String &msg)
 {
     SerialSTM.print(msg);
-    SerialSTM.print("\n"); // Exact line delimiter expected by STM32
+    SerialSTM.print("\n");
     Serial.print("[TX -> STM32]: ");
     Serial.println(msg);
 }
@@ -32,114 +44,69 @@ static void processCommand(const String &cmd)
     Serial.print("[RX <- STM32]: ");
     Serial.println(cmd);
 
-    if (cmd == "$STATUS,REQ")
-    {
+    if (cmd == "$STATUS,REQ") {
         sendUartMessage("$STATUS,READY");
     }
-    else if (cmd.startsWith("$WIFI,SCAN"))
-    {
+    else if (cmd.startsWith("$WIFI,SCAN")) {
         startWifiScan();
     }
-    else if (cmd.startsWith("$BT,SCAN"))
-    {
+    else if (cmd.startsWith("$BT,SCAN")) {
         int duration = 5;
         int commaIdx = cmd.lastIndexOf(',');
         if (commaIdx != -1 && commaIdx < (int)cmd.length() - 1)
-        {
             duration = cmd.substring(commaIdx + 1).toInt();
-        }
         startBleScan(duration);
     }
-    else if (cmd == "$DIAG,START")
-    {
+    else if (cmd == "$DIAG,START") {
         uint32_t freeHeap = ESP.getFreeHeap();
         uint32_t cpuFreq = ESP.getCpuFreqMHz();
         sendUartMessage("$DIAG,RESULT,CPU=" + String(cpuFreq) + "M,HEAP=" + String(freeHeap) + ",WIFI_OK,BLE_OK");
     }
-    else if (cmd == "$LOCK")
-    {
-        jam_mode = 0; // wifi
-        if (jammerTaskHandle == NULL)
-        {
-            xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);
-            Serial.printf("[UART] $LOCK: wifi task created\n");
-        }
-        sendUartMessage("$LOCK,OK");
-    }
-    else if (cmd == "$LOCK,BT")
-    {
-        jam_mode = 1; // bluetooth
-        if (jammerTaskHandle == NULL)
-        {
-            xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);
-            Serial.printf("[UART] $LOCK,BT: bluetooth task created\n");
-        }
-        sendUartMessage("$LOCK,OK");
-    }
-    else if (cmd == "$LOCK,BLE")
-    {
-        jam_mode = 2; // ble
-        if (jammerTaskHandle == NULL)
-        {
-            xTaskCreate(jammerTask, "jammerTask", 4096, nullptr, 1, &jammerTaskHandle);
-            Serial.printf("[UART] $LOCK,BLE: ble task created\n");
-        }
-        sendUartMessage("$LOCK,OK");
-    }
+    else if (cmd == "$LOCK")      { startJam(JAM_MODE_WIFI,   "$LOCK");     sendUartMessage("$LOCK,OK"); }
+    else if (cmd == "$LOCK,BT")   { startJam(JAM_MODE_BT,     "$LOCK,BT");  sendUartMessage("$LOCK,OK"); }
+    else if (cmd == "$LOCK,BLE")  { startJam(JAM_MODE_BLE,    "$LOCK,BLE"); sendUartMessage("$LOCK,OK"); }
+    else if (cmd == "$LOCK,DRONE"){ startJam(JAM_MODE_DRONE,  "$LOCK,DRONE"); sendUartMessage("$LOCK,OK"); }
+    else if (cmd == "$LOCK,ZB")   { startJam(JAM_MODE_ZIGBEE, "$LOCK,ZB");  sendUartMessage("$LOCK,OK"); }
     else if (cmd == "$UNLOCK")
     {
         jammerStopFlag = true;
-        stop_jammer();
 
+        /* wait for the task to leave the loop BEFORE touching the radio,
+         * otherwise two contexts drive the SPI bus at once */
         TickType_t start = xTaskGetTickCount();
         while (jammerTaskHandle != NULL &&
-               (xTaskGetTickCount() - start) < pdMS_TO_TICKS(1000))
-        {
+               (xTaskGetTickCount() - start) < pdMS_TO_TICKS(1000)) {
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
-        if (jammerTaskHandle == NULL)
-        {
-            sendUartMessage("$UNLOCK,OK");
-        }
-        else
-        {
-            sendUartMessage("$UNLOCK,ERROR");
-        }
+        stop_jammer();
+
+        sendUartMessage(jammerTaskHandle == NULL ? "$UNLOCK,OK" : "$UNLOCK,ERROR");
     }
 }
 
 void uartProtocolLoop()
 {
-    if (millis() - lastHeartbeat >= 2500)
-    {
+    if (millis() - lastHeartbeat >= 2500) {
         lastHeartbeat = millis();
         sendUartMessage("$STATUS,READY");
     }
 
-    while (SerialSTM.available() > 0)
-    {
+    while (SerialSTM.available() > 0) {
         char c = (char)SerialSTM.read();
-        if (c == '\r')
-            continue;
-        if (c == '\n')
-        {
-            if (rxIndex > 0)
-            {
+        if (c == '\r') continue;
+
+        if (c == '\n') {
+            if (rxIndex > 0) {
                 rxBuffer[rxIndex] = '\0';
                 String commandStr = String(rxBuffer);
                 rxIndex = 0;
-                processCommand(commandStr); // already prints [RX <- STM32]
+                processCommand(commandStr);
             }
-        }
-        else
-        {
-            if (rxIndex < (UART_BUF_SIZE - 1))
-            {
+        } else {
+            if (rxIndex < (UART_BUF_SIZE - 1)) {
                 rxBuffer[rxIndex++] = c;
-            }
-            else
-            {
+            } else {
                 Serial.println("[UART] WARNING: RX buffer overflow, resetting.");
                 rxIndex = 0;
             }
