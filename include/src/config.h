@@ -27,9 +27,7 @@
 
 #define RADIO_POLLING_MS    50
 
-// --- PA/LNA switch ---
-#define RADIO_PA_EN_PIN     25
-#define RADIO_LNA_EN_PIN    27
+#define RADIO_HAS_PA_EN     0
 
 // --- Jam payload: 32 x 0xFF, ~264us of air at 1Mbps ---
 static const uint8_t JAM_TEXT[32] = {

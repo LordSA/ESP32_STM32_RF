@@ -148,15 +148,18 @@ void SPI_init() {
     }
   }
 
-  /* TX switch on, RX switch off */
-  pinMode(RADIO_PA_EN_PIN, OUTPUT);
-  pinMode(RADIO_LNA_EN_PIN, OUTPUT);
-  digitalWrite(RADIO_PA_EN_PIN, HIGH);
-  digitalWrite(RADIO_LNA_EN_PIN, LOW);
-  Serial.println("PA+LNA enabled (TX).");
+  // after
+  #if RADIO_HAS_PA_EN
+    pinMode(RADIO_PA_EN_PIN, OUTPUT);
+    pinMode(RADIO_LNA_EN_PIN, OUTPUT);
+    digitalWrite(RADIO_PA_EN_PIN, HIGH);
+    digitalWrite(RADIO_LNA_EN_PIN, LOW);
+  #else
+    Serial.println("Bare module: no PA/LNA enable pins.");
+  #endif   
 
   configureRadio(radio);
-  
+
   Serial.println("Radio 0 Details:");
   radio.printDetails();
 
